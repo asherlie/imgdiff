@@ -42,47 +42,9 @@ _Bool check_read(int fd, uint8_t* buf, ssize_t len, const char* failure_msg){
     return 1;
 }
 
-int parse_ihdr(uint8_t* buf){
+int parse_ihdr(uint8_t* buf, struct png* img){
+    uint8_t* bufptr = buf;
     
-}
-
-int read_chunk(int fd, struct png* img){
-	uint16_t buflen = 21024;
-	uint8_t buf[buflen], * bufptr;
-    uint32_t hdrlen;
-
-    // TODO: this is not before each chunk...
-    if (!img->valid && (!check_read(fd, buf, sizeof(pngsig), "Failed to read signature") || memcmp(buf, pngsig, sizeof(pngsig)))) {
-        return 1;
-    }
-    img->valid = 1;
-
-    /*
-     * if (bread < (ssize_t)sizeof(pngsig) || memcmp(buf, pngsig, sizeof(pngsig))) {
-     *     puts("Failed to read signature");
-     *     p_buf(buf, sizeof(pngsig), 1);
-     *     p_buf(pngsig, sizeof(pngsig), 1);
-     *     return 1;
-     * }
-    */
-
-    if (!check_read(fd, (uint8_t*)&hdrlen, sizeof(uint32_t), "Failed to read hdrlen")) {
-        return 1;
-    }
-    hdrlen = ntohl(hdrlen);
-    printf("%i bytes of content!\n", hdrlen);
-
-    if (!check_read(fd, buf, hdrlen, "Failed to read IHDR")) {
-        return 1;
-    }
-
-    bufptr = buf;
-
-    if (memcmp(bufptr, ihdr, sizeof(ihdr))) {
-        puts("Did not find IHDR bytes");
-        return 1;
-    }
-
     bufptr += sizeof(ihdr);
 
 	/*bread = read(fd, buf, sizeof(ihdr));*/
@@ -111,6 +73,44 @@ int read_chunk(int fd, struct png* img){
 
     memcpy(&img->interlaced, bufptr, sizeof(uint8_t));
     bufptr += sizeof(uint8_t);
+
+    return 0;
+}
+
+int read_chunk(int fd, struct png* img){
+	uint16_t buflen = 21024;
+	uint8_t buf[buflen];
+    uint32_t chunklen;
+
+    // TODO: this is not before each chunk...
+    if (!img->valid && (!check_read(fd, buf, sizeof(pngsig), "Failed to read signature") || memcmp(buf, pngsig, sizeof(pngsig)))) {
+        return 1;
+    }
+    img->valid = 1;
+
+    /*
+     * if (bread < (ssize_t)sizeof(pngsig) || memcmp(buf, pngsig, sizeof(pngsig))) {
+     *     puts("Failed to read signature");
+     *     p_buf(buf, sizeof(pngsig), 1);
+     *     p_buf(pngsig, sizeof(pngsig), 1);
+     *     return 1;
+     * }
+    */
+
+    if (!check_read(fd, (uint8_t*)&chunklen, sizeof(uint32_t), "Failed to read chunklen")) {
+        return 1;
+    }
+    chunklen = ntohl(chunklen);
+    printf("%i bytes of content!\n", chunklen);
+
+    if (!check_read(fd, buf, chunklen, "Failed to read chunklen")) {
+        return 1;
+    }
+
+    if (!memcmp(buf, ihdr, sizeof(ihdr))) {
+        puts("Found IHDR bytes");
+        parse_ihdr(buf, img);
+    }
 
     // skip 4 bytes to bypass CRC
     lseek(fd, 4, SEEK_CUR);
