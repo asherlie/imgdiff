@@ -41,7 +41,7 @@ _Bool check_read(int fd, uint8_t* buf, ssize_t len, const char* failure_msg){
 
 int main(int a, char** b){
 	uint16_t buflen = 21024;
-	uint8_t buf[buflen];
+	uint8_t buf[buflen], * bufptr;
     uint32_t ihdrlen, img_w, img_h;
     uint8_t bits_per_pixel, color_type, compression_method, filter_method;
 	int fd;
@@ -78,20 +78,30 @@ int main(int a, char** b){
     // i can replace these reads with just a check_read(ihdrlen)
 
 
-	/*bread = read(fd, buf, sizeof(ihdr));*/
-    if (!check_read(fd, buf, sizeof(ihdr), "Failed to read IHDR") || memcmp(buf, ihdr, sizeof(ihdr))) {
+    if (!check_read(fd, buf, ihdrlen, "Failed to read IHDR")) {
         return 1;
     }
 
-    if (!check_read(fd, (uint8_t*)&img_w, sizeof(uint32_t), "Failed to read img width")) {
+    bufptr = buf;
+
+    if (memcmp(bufptr, ihdr, sizeof(ihdr))) {
+        puts("Did not find IHDR bytes");
         return 1;
     }
+
+    bufptr += sizeof(ihdr);
+
+	/*bread = read(fd, buf, sizeof(ihdr));*/
+
+    memcpy(&img_w, bufptr, sizeof(uint32_t));
     img_w = ntohl(img_w);
 
-    if (!check_read(fd, (uint8_t*)&img_h, sizeof(uint32_t), "Failed to read img height")) {
-        return 1;
-    }
+    bufptr += sizeof(uint32_t);
+
+    memcpy(&img_h, bufptr, sizeof(uint32_t));
     img_h = ntohl(img_h);
+
+    bufptr += sizeof(uint32_t);
 
     printf("IMG: %s - [%i x %i]\n", b[1], img_w, img_h);
 
