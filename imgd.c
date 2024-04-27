@@ -9,8 +9,10 @@
 // attribute packed?
 uint8_t pngsig[8] = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
 uint8_t ihdr[4] = {'I', 'H', 'D', 'R'};
-struct png_hdr{
-    uint8_t magic[8];
+
+struct png{
+    uint32_t w, h;
+    uint8_t bits_per_pixel, color_type, compression_method, filter_method, interlaced;
 };
 
 void p_buf(uint8_t* buf, int len, _Bool pchar){
@@ -39,20 +41,11 @@ _Bool check_read(int fd, uint8_t* buf, ssize_t len, const char* failure_msg){
     return 1;
 }
 
-int main(int a, char** b){
+int read_chunk(int fd, struct png* img){
 	uint16_t buflen = 21024;
 	uint8_t buf[buflen], * bufptr;
-    uint32_t ihdrlen, img_w, img_h;
-    uint8_t bits_per_pixel, color_type, compression_method, filter_method;
-	int fd;
-    
-    if (a < 2) {
-        return 1;
-    }
+    uint32_t ihdrlen;
 
-    fd = open(b[1], O_RDONLY);
-
-	/*bread = read(fd, buf, sizeof(pngsig));*/
     if (!check_read(fd, buf, sizeof(pngsig), "Failed to read signature") || memcmp(buf, pngsig, sizeof(pngsig))) {
         return 1;
     }
@@ -71,12 +64,6 @@ int main(int a, char** b){
     }
     ihdrlen = ntohl(ihdrlen);
     printf("%i bytes of content!\n", ihdrlen);
-    // TODO: actually read the above number of bytes before parsing
-    //
-    // UGH. should just do this now. this is important because i think it's the only way to 
-    // know the length of the CRC bytes. it's the last n bytes of the header
-    // i can replace these reads with just a check_read(ihdrlen)
-
 
     if (!check_read(fd, buf, ihdrlen, "Failed to read IHDR")) {
         return 1;
@@ -93,16 +80,45 @@ int main(int a, char** b){
 
 	/*bread = read(fd, buf, sizeof(ihdr));*/
 
-    memcpy(&img_w, bufptr, sizeof(uint32_t));
-    img_w = ntohl(img_w);
-
+    memcpy(&img->w, bufptr, sizeof(uint32_t));
+    img->w = ntohl(img->w);
     bufptr += sizeof(uint32_t);
 
-    memcpy(&img_h, bufptr, sizeof(uint32_t));
-    img_h = ntohl(img_h);
-
+    memcpy(&img->h, bufptr, sizeof(uint32_t));
+    img->h = ntohl(img->h);
     bufptr += sizeof(uint32_t);
 
-    printf("IMG: %s - [%i x %i]\n", b[1], img_w, img_h);
+    printf("IMG: [%i x %i]\n", img->w, img->h);
 
+    memcpy(&img->bits_per_pixel, bufptr, sizeof(uint8_t));
+    bufptr += sizeof(uint8_t);
+
+    memcpy(&img->color_type, bufptr, sizeof(uint8_t));
+    bufptr += sizeof(uint8_t);
+
+    memcpy(&img->compression_method, bufptr, sizeof(uint8_t));
+    bufptr += sizeof(uint8_t);
+
+    memcpy(&img->filter_method, bufptr, sizeof(uint8_t));
+    bufptr += sizeof(uint8_t);
+
+    memcpy(&img->interlaced, bufptr, sizeof(uint8_t));
+    bufptr += sizeof(uint8_t);
+
+    // skip 4 bytes to bypass CRC
+    lseek(fd, 4, SEEK_CUR);
+
+    return 0;
+}
+
+int main(int a, char** b){
+	int fd;
+    struct png img;
+    
+    if (a < 2) {
+        return 1;
+    }
+
+    fd = open(b[1], O_RDONLY);
+    read_chunk(fd, &img);
 }
