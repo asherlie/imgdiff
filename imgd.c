@@ -11,6 +11,7 @@ uint8_t pngsig[8] = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
 uint8_t ihdr[4] = {'I', 'H', 'D', 'R'};
 
 struct png{
+    _Bool valid;
     uint32_t w, h;
     uint8_t bits_per_pixel, color_type, compression_method, filter_method, interlaced;
 };
@@ -41,14 +42,20 @@ _Bool check_read(int fd, uint8_t* buf, ssize_t len, const char* failure_msg){
     return 1;
 }
 
+int parse_ihdr(uint8_t* buf){
+    
+}
+
 int read_chunk(int fd, struct png* img){
 	uint16_t buflen = 21024;
 	uint8_t buf[buflen], * bufptr;
-    uint32_t ihdrlen;
+    uint32_t hdrlen;
 
-    if (!check_read(fd, buf, sizeof(pngsig), "Failed to read signature") || memcmp(buf, pngsig, sizeof(pngsig))) {
+    // TODO: this is not before each chunk...
+    if (!img->valid && (!check_read(fd, buf, sizeof(pngsig), "Failed to read signature") || memcmp(buf, pngsig, sizeof(pngsig)))) {
         return 1;
     }
+    img->valid = 1;
 
     /*
      * if (bread < (ssize_t)sizeof(pngsig) || memcmp(buf, pngsig, sizeof(pngsig))) {
@@ -59,13 +66,13 @@ int read_chunk(int fd, struct png* img){
      * }
     */
 
-    if (!check_read(fd, (uint8_t*)&ihdrlen, sizeof(uint32_t), "Failed to read ihdrlen")) {
+    if (!check_read(fd, (uint8_t*)&hdrlen, sizeof(uint32_t), "Failed to read hdrlen")) {
         return 1;
     }
-    ihdrlen = ntohl(ihdrlen);
-    printf("%i bytes of content!\n", ihdrlen);
+    hdrlen = ntohl(hdrlen);
+    printf("%i bytes of content!\n", hdrlen);
 
-    if (!check_read(fd, buf, ihdrlen, "Failed to read IHDR")) {
+    if (!check_read(fd, buf, hdrlen, "Failed to read IHDR")) {
         return 1;
     }
 
@@ -113,7 +120,7 @@ int read_chunk(int fd, struct png* img){
 
 int main(int a, char** b){
 	int fd;
-    struct png img;
+    struct png img = {0};
     
     if (a < 2) {
         return 1;
