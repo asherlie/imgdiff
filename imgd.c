@@ -43,7 +43,7 @@ _Bool check_read(int fd, uint8_t* buf, ssize_t len, const char* failure_msg){
 
 int parse_ihdr(uint8_t* buf, struct png* img){
     // skip past chunk type 
-    uint8_t* bufptr = buf + 4;
+    uint8_t* bufptr = buf;
     
 	/*bread = read(fd, buf, sizeof(ihdr));*/
 
@@ -110,22 +110,22 @@ int read_chunk(int fd, struct png* img){
     if (!check_read(fd, chunk_type, sizeof(chunk_type), "Failed to read chunktype")) {
         return 1;
     }
-    printf("Found chunk %s\n", chunk_type);
+    printf("Found chunk %s...\n", chunk_type);
 
     if (!check_read(fd, buf, chunklen, "Failed to read chunkdata")) {
         return 1;
     }
 
     if (!memcmp(chunk_type, "IHDR", 4)) {
-        puts("Found IHDR bytes");
+        puts("Processing IHDR");
         parse_ihdr(buf, img);
     }
     else if (!memcmp(chunk_type, "IDAT", 4)) {
-        puts("Found IDAT bytes");
+        puts("Processing IDAT");
         parse_idat(buf, img);
     }
     else {
-        
+        puts("Ignoring");
     }
 
     // skip 4 bytes to bypass CRC
@@ -143,7 +143,6 @@ int main(int a, char** b){
     }
 
     fd = open(b[1], O_RDONLY);
-    read_chunk(fd, &img);
-    read_chunk(fd, &img);
+    while (!read_chunk(fd, &img));
 }
 /*TODO: ignore until we get to IDAT*/
