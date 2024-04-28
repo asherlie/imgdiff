@@ -17,8 +17,9 @@ struct png{
     uint8_t bits_per_pixel, color_type, compression_method, filter_method, interlaced;
 
     uint8_t dat_compression_method, zlib_fcheck_val;
-    uint8_t* data;
+    uint8_t* data, * data_decomp;
     uint32_t adler32_csum, idat_crc_notincluded, datalen;
+    uint64_t decomp_datalen;
 
 };
 
@@ -96,6 +97,12 @@ int parse_idat(uint8_t* buf, struct png* img, uint32_t chunklen){
     memcpy(img->data, bufptr, chunklen - 1 - 1 - 4);
     bufptr += (chunklen - 1 - 1 - 4);
 
+    // there's no way to know the decompressed data length of a zlib archive according to man page
+    // until after the call to uncompress. decomp_datalen will be accurate once uncompress exits
+    /*img->decomp_datalen = */
+    img->decomp_datalen = img->datalen * 2;
+    img->data_decomp = calloc(1, img->decomp_datalen);
+    uncompress(img->data_decomp, &img->decomp_datalen, img->data, img->datalen);
     return 0;
 }
 
