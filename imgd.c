@@ -2,9 +2,11 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <zlib.h>
 
 // attribute packed?
 uint8_t pngsig[8] = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
@@ -13,6 +15,11 @@ struct png{
     _Bool valid;
     uint32_t w, h;
     uint8_t bits_per_pixel, color_type, compression_method, filter_method, interlaced;
+
+    uint8_t dat_compression_method, zlib_fcheck_val;
+    uint8_t* data;
+    uint32_t adler32_csum, idat_crc_notincluded, datalen;
+
 };
 
 void p_buf(uint8_t* buf, int len, _Bool pchar){
@@ -23,7 +30,7 @@ void p_buf(uint8_t* buf, int len, _Bool pchar){
         if (i && i % 8 == 0) {
             puts("");
         }
-        if (pchar && isalpha(buf[i])) {
+        if (pchar && isalnum(buf[i])) {
             printf("   %c ", buf[i]);
         } else {
             printf("0x%.2X ", buf[i]);
@@ -42,11 +49,8 @@ _Bool check_read(int fd, uint8_t* buf, ssize_t len, const char* failure_msg){
 }
 
 int parse_ihdr(uint8_t* buf, struct png* img){
-    // skip past chunk type 
     uint8_t* bufptr = buf;
     
-	/*bread = read(fd, buf, sizeof(ihdr));*/
-
     memcpy(&img->w, bufptr, sizeof(uint32_t));
     img->w = ntohl(img->w);
     bufptr += sizeof(uint32_t);
@@ -74,7 +78,24 @@ int parse_ihdr(uint8_t* buf, struct png* img){
 
     return 0;
 }
-int parse_idat(uint8_t* buf, struct png* img){
+
+
+// TODO: handle multiple IDAT files, in this case, just concatenate contents of all chunks. easy enough
+int parse_idat(uint8_t* buf, struct png* img, uint32_t chunklen){
+    uint8_t* bufptr = buf;
+
+    memcpy(&img->dat_compression_method, bufptr, sizeof(uint8_t));
+    bufptr += sizeof(uint8_t);
+
+    memcpy(&img->zlib_fcheck_val, bufptr, sizeof(uint8_t));
+    bufptr += sizeof(uint8_t);
+
+    /* subtract all non data fields aside from CRC, which is lseek()d over from chunklen */
+    img->datalen = chunklen - 1 - 1 - 4;
+    img->data = malloc(img->datalen);
+    memcpy(img->data, bufptr, chunklen - 1 - 1 - 4);
+    bufptr += (chunklen - 1 - 1 - 4);
+
     return 0;
 }
 
@@ -107,6 +128,7 @@ int read_chunk(int fd, struct png* img){
     chunklen = ntohl(chunklen);
     printf("%i bytes of content!\n", chunklen);
 
+    /*it seems that length includes everthing after headerlabel and before CRC*/
     if (!check_read(fd, chunk_type, sizeof(chunk_type), "Failed to read chunktype")) {
         return 1;
     }
@@ -122,7 +144,7 @@ int read_chunk(int fd, struct png* img){
     }
     else if (!memcmp(chunk_type, "IDAT", 4)) {
         puts("Processing IDAT");
-        parse_idat(buf, img);
+        parse_idat(buf, img, chunklen);
     }
     else {
         puts("Ignoring");
@@ -144,5 +166,8 @@ int main(int a, char** b){
 
     fd = open(b[1], O_RDONLY);
     while (!read_chunk(fd, &img));
+
+    printf("\n%i bytes of compressed data\n", img.datalen);
+    p_buf(img.data, img.datalen, 1);
 }
 /*TODO: ignore until we get to IDAT*/
