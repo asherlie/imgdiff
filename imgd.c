@@ -93,16 +93,22 @@ int parse_idat(uint8_t* buf, struct png* img, uint32_t chunklen){
 
     /* subtract all non data fields aside from CRC, which is lseek()d over from chunklen */
     img->datalen = chunklen - 1 - 1 - 4;
+    // these were my idea that maybe zlib fcheck is included in data
+    // TODO: fix arithmetic... turns out two bytes before what i thought are included!
+    img->datalen += 2;
     img->data = malloc(img->datalen);
-    memcpy(img->data, bufptr, chunklen - 1 - 1 - 4);
-    bufptr += (chunklen - 1 - 1 - 4);
+    memcpy(img->data, bufptr-2, img->datalen);
+    /*memcpy(img->data, bufptr, img->datalen);*/
+    bufptr += img->datalen;
 
     // there's no way to know the decompressed data length of a zlib archive according to man page
     // until after the call to uncompress. decomp_datalen will be accurate once uncompress exits
     /*img->decomp_datalen = */
     img->decomp_datalen = img->datalen * 2;
-    img->data_decomp = calloc(1, img->decomp_datalen);
-    uncompress(img->data_decomp, &img->decomp_datalen, img->data, img->datalen);
+    img->data_decomp = malloc(img->decomp_datalen);
+
+    int x = uncompress(img->data_decomp, &img->decomp_datalen, img->data, img->datalen);
+    printf("%i == %i == %i == %i == %i\n", x, Z_OK, Z_MEM_ERROR, Z_BUF_ERROR, Z_DATA_ERROR);
     return 0;
 }
 
@@ -176,5 +182,8 @@ int main(int a, char** b){
 
     printf("\n%i bytes of compressed data\n", img.datalen);
     p_buf(img.data, img.datalen, 1);
+
+    printf("\n%li bytes of decompressed data\n", img.decomp_datalen);
+    p_buf(img.data_decomp, img.decomp_datalen, 1);
 }
 /*TODO: ignore until we get to IDAT*/
