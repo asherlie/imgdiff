@@ -81,6 +81,13 @@ int parse_ihdr(uint8_t* buf, struct png* img){
 }
 
 
+_Bool extract_data(struct png* img){
+    img->decomp_datalen = img->datalen * 2;
+    img->data_decomp = malloc(img->decomp_datalen);
+
+    return uncompress(img->data_decomp, &img->decomp_datalen, img->data, img->datalen) == Z_OK;
+}
+
 // TODO: handle multiple IDAT files, in this case, just concatenate contents of all chunks. easy enough
 // i'll do this by separating out decompression
 // this will only occur once we read IEND
@@ -107,11 +114,7 @@ int parse_idat(uint8_t* buf, struct png* img, uint32_t chunklen){
     // there's no way to know the decompressed data length of a zlib archive according to man page
     // until after the call to uncompress. decomp_datalen will be accurate once uncompress exits
     /*img->decomp_datalen = */
-    img->decomp_datalen = img->datalen * 2;
-    img->data_decomp = malloc(img->decomp_datalen);
-
-    int x = uncompress(img->data_decomp, &img->decomp_datalen, img->data, img->datalen);
-    printf("%i == %i == %i == %i == %i\n", x, Z_OK, Z_MEM_ERROR, Z_BUF_ERROR, Z_DATA_ERROR);
+    extract_data(img);
     return 0;
 }
 
