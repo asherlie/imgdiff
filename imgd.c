@@ -8,7 +8,6 @@
 
 // attribute packed?
 uint8_t pngsig[8] = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
-uint8_t ihdr[4] = {'I', 'H', 'D', 'R'};
 
 struct png{
     _Bool valid;
@@ -43,10 +42,9 @@ _Bool check_read(int fd, uint8_t* buf, ssize_t len, const char* failure_msg){
 }
 
 int parse_ihdr(uint8_t* buf, struct png* img){
-    uint8_t* bufptr = buf;
+    // skip past chunk type 
+    uint8_t* bufptr = buf + 4;
     
-    bufptr += sizeof(ihdr);
-
 	/*bread = read(fd, buf, sizeof(ihdr));*/
 
     memcpy(&img->w, bufptr, sizeof(uint32_t));
@@ -76,10 +74,14 @@ int parse_ihdr(uint8_t* buf, struct png* img){
 
     return 0;
 }
+int parse_idat(uint8_t* buf, struct png* img){
+    return 0;
+}
 
 int read_chunk(int fd, struct png* img){
 	uint16_t buflen = 21024;
 	uint8_t buf[buflen];
+    uint8_t chunk_type[4];
     uint32_t chunklen;
 
     // TODO: this is not before each chunk...
@@ -100,16 +102,30 @@ int read_chunk(int fd, struct png* img){
     if (!check_read(fd, (uint8_t*)&chunklen, sizeof(uint32_t), "Failed to read chunklen")) {
         return 1;
     }
+    puts("chunklen:");
+    p_buf((uint8_t*)&chunklen, sizeof(uint32_t), 1);
     chunklen = ntohl(chunklen);
     printf("%i bytes of content!\n", chunklen);
 
-    if (!check_read(fd, buf, chunklen, "Failed to read chunklen")) {
+    if (!check_read(fd, chunk_type, sizeof(chunk_type), "Failed to read chunktype")) {
+        return 1;
+    }
+    printf("Found chunk %s\n", chunk_type);
+
+    if (!check_read(fd, buf, chunklen, "Failed to read chunkdata")) {
         return 1;
     }
 
-    if (!memcmp(buf, ihdr, sizeof(ihdr))) {
+    if (!memcmp(chunk_type, "IHDR", 4)) {
         puts("Found IHDR bytes");
         parse_ihdr(buf, img);
+    }
+    else if (!memcmp(chunk_type, "IDAT", 4)) {
+        puts("Found IDAT bytes");
+        parse_idat(buf, img);
+    }
+    else {
+        
     }
 
     // skip 4 bytes to bypass CRC
@@ -128,4 +144,6 @@ int main(int a, char** b){
 
     fd = open(b[1], O_RDONLY);
     read_chunk(fd, &img);
+    read_chunk(fd, &img);
 }
+/*TODO: ignore until we get to IDAT*/
