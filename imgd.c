@@ -82,6 +82,9 @@ int parse_ihdr(uint8_t* buf, struct png* img){
 
 
 // TODO: handle multiple IDAT files, in this case, just concatenate contents of all chunks. easy enough
+// i'll do this by separating out decompression
+// this will only occur once we read IEND
+// we will also concatenate each chunk of idata that we get until we're ready to uncompress
 int parse_idat(uint8_t* buf, struct png* img, uint32_t chunklen){
     uint8_t* bufptr = buf;
 
